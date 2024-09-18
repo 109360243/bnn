@@ -22,28 +22,61 @@ from brevitas.core.quant.binary import BinaryQuant
 from brevitas.core.scaling import ConstScaling
 
 from common import *
+import brevitas
 
-
+    #    在numpy数组中，不好直接判断np.array整个数组大于零或小于零，
+        #所以需要把数组里的数字取出来一个一个判断，计算后，再重新整合：
+    #但这样会增加处理时间，会让帧率变慢
 def sigmoid(x):
-    return 1/(1+np.exp(-x))
+    x_ravel = x.ravel()  # 将numpy数组展平
+    length = len(x_ravel)
+    y = []
+    for index in range(length):
+        if x_ravel[index] >= 0:
+            y.append(1.0 / (1 + np.exp(-x_ravel[index])))
+        else:
+            y.append(np.exp(x_ravel[index]) / (np.exp(x_ravel[index]) + 1))
+    return np.array(y).reshape(x.shape)
+
+   
 def relu(x):
     return np.maximum(0, x)
 def softmax(x):
     exp_x = np.exp(x - np.max(x, axis=1, keepdims=True))  # 防止溢位
     return exp_x / np.sum(exp_x, axis=1, keepdims=True)
-Weights = torch.load('C:/Users/alexzhong/bnn/mnist_bnn_mlp.pt',map_location=torch.device('cpu'))
-W1 = Weights['fc1.weight']
-W1 = W1.cpu().numpy()
-W1 = W1.T
-W2 = Weights['fc2.weight']
-W2 = W2.cpu().numpy()
-W2 = W2.T
-W3 = Weights['fc3.weight']
-W3 = W3.cpu().numpy()
-W3 = W3.T
-W4 = Weights['fc4.weight']
-W4 = W4.cpu().numpy()
-W4 = W4.T
+def quant_impl(qmin,qmax,r):    
+    for i in range(0, r.shape[0]):
+        for j in range(0, r.shape[1]):
+            S = (max(r[i]) - min(r[i])) / (qmax - qmin)
+            z = (qmin - min(r[i]))/S
+            r[i,j] = r[i,j]/S+z
+    return r
+qmin = -256
+qmax = 255
+Weights = torch.load('C:/Users/yuze/bnn/mnist_bnn_mlp.pt',map_location=torch.device('cpu'))
+W1_origin = Weights['fc1.weight']
+W1_cpu = W1_origin.cpu().numpy()
+W1 = W1_cpu.T
+# W1_cpu_T = W1_cpu.T
+# W1 = quant_impl(qmin=qmin,qmax=qmax,r=W1_cpu_T)
+
+W2_origin = Weights['fc2.weight']
+W2_cpu = W2_origin.cpu().numpy()
+W2 = W2_cpu.T
+# W2_cpu_T = W2_cpu.T
+# W2 = quant_impl(qmin=qmin,qmax=qmax,r=W2_cpu_T)
+
+W3_origin = Weights['fc3.weight']
+W3_cpu = W3_origin.cpu().numpy()
+W3 = W3_cpu.T
+# W3_cpu_T = W3_cpu.T
+# W3 = quant_impl(qmin=qmin,qmax=qmax,r=W3_cpu_T)
+
+W4_origin = Weights['fc4.weight']
+W4_cpu = W4_origin.cpu().numpy()
+W4 = W4_cpu.T
+# W4_cpu_T = W4_cpu.T
+# W4 = quant_impl(qmin=qmin,qmax=qmax,r=W4_cpu_T)
 b1 = Weights['bn1.bias']
 b1 = b1.cpu().numpy()
 b2= Weights['bn2.bias']
@@ -55,24 +88,20 @@ b4 = b4.cpu().numpy()
 
 
 
-
 def forward_propagation(X, W1, b1, W2, b2,W3,b3,W4,b4):
 
-    X = torch.flatten(X,start_dim=1).numpy() 
-
-
-    Z1 = np.dot(X, W1) + b1
+    X = torch.flatten(X,start_dim=1).numpy()     
+    Z1 = np.dot(X, W1) + b1   
     A1 = sigmoid(Z1)
-
+    
     Z2 = np.dot(A1, W2) + b2
     A2 = sigmoid(Z2)
-
+    
     Z3 = np.dot(A2, W3) + b3
     A3 = sigmoid(Z3)
-
+    
     A4 = np.dot(A3, W4) + b4
     A4 = softmax(A4)
-
     return A4
 
 
@@ -167,14 +196,7 @@ def main():
    
     # optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
     
-    
-
-
-    
-    
-    for epoch in range(1, args.epochs + 1):
-        
-        test( device, test_loader)
+    test( device, test_loader)
         
 
 
